@@ -1,0 +1,109 @@
+#***************************
+#**Install Asterisk 16 on **
+#**CentOS-7 with LCdial   **
+#***************************
+
+# update os
+yum -y update
+# optional update host name
+hostnamectl set-hostname pbx.example.com
+
+# *** install the latest epel release
+
+yum  -y install epel-release
+
+# *** disable SE linux kernel ***
+
+setenforce 0
+sed -i 's/\(^SELINUX=\).*/\SELINUX=permissive/' /etc/selinux/config
+
+# *** Install Asterisk 16 PBX dependencies ***
+
+yum -y install wget vim  net-tools
+
+#install g++ gcc and other tools
+
+yum -y groupinstall "Development Tools"
+
+#some other packages
+yum -y install libedit-devel sqlite-devel psmisc gmime-devel ncurses-devel libtermcap-devel sox newt-devel libxml2-devel libtiff-devel audiofile-devel gtk2-devel uuid-devel libtool libuuid-devel subversion kernel-devel kernel-devel-$(uname -r) git subversion kernel-devel crontabs cronie cronie-anacron wget vim
+
+
+# *** Download and Install Jansson ***
+
+cd /usr/src/
+git clone https://github.com/akheron/jansson.git
+cd jansson
+autoreconf  -i
+./configure --prefix=/usr/
+make && make install
+
+# ***Download and Install PJSIP ***
+
+cd /usr/src/ 
+export VER="2.8"
+# ** if bzip2 not installed **
+#yum install bzip2
+wget http://www.pjsip.org/release/${VER}/pjproject-${VER}.tar.bz2
+tar -jxvf pjproject-${VER}.tar.bz2
+cd pjproject-${VER}
+./configure CFLAGS="-DNDEBUG -DPJ_HAS_IPV6=1" --prefix=/usr --libdir=/usr/lib64 --enable-shared --disable-video --disable-sound --disable-opencore-amr
+make dep
+make
+make install
+ldconfig
+
+
+# *** Download and Install Asterisk ***
+cd /usr/src/
+wget http://downloads.asterisk.org/pub/telephony/asterisk/asterisk-16-current.tar.gz
+tar xvfz asterisk-16-current.tar.gz
+rm -f asterisk-16-current.tar.gz
+cd asterisk-*
+./configure --libdir=/usr/lib64
+
+
+# *** Set Asterisk menu options *** /optional/ 
+
+#make menuselect
+# ** if mp3format was selected **
+#contrib/scripts/get_mp3_source.sh 
+
+# *** build asterisk ***
+make
+make install
+make samples
+make config
+ldconfig
+# start and enable(optional) asterisk
+sudo systemctl start asterisk
+sudo systemctl enable asterisk
+
+#### compiling LCdial ####
+# It assumes that the asterisk sources can be found at /usr/src/asterisk, that the asterisk modules directory
+# is at /usr/lib/asterisk/modules (lib64) in our case so --> /usr/lib64/asterisk/modules and
+# that the asterisk configuration is at /etc/asterisk/.
+# For compiling it you need to have already installed asterisk and the mysql client libary and header files.
+
+# *** download mysql libraries *** 
+
+wget http://dev.mysql.com/get/mysql57-community-release-el7-9.noarch.rpm
+#prepare the repository
+rpm -Uvh mysql57-community-release-el7-9.noarch.rpm
+yum install mysql-server
+yum install mysql-devel
+
+systemctl start mysqld
+systemctl status mysqld
+
+cd /usr/src
+mv asterisk-* asterisk
+wget http://docs.creasol.it/LCDial-latest.tar.gz
+tar zxvf LCDial-latest.tar.gz
+cd LCDial
+
+
+# edit the install.sh file and change if [ ! -d /usr/lib/asterisk ]; --> if [ ! -d /src/lib/asterisk ];
+# edit the Makefile file and change ASTERISKMODDIR=/usr/lib/asterisk/modules --> ASTERISKMODDIR=/usr/lib64/asterisk/modules
+#run the install script 
+./install.sh
